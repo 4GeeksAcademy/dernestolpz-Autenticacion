@@ -1,3 +1,4 @@
+// src/store/flux.js
 const getState = ({ getStore, getActions, setStore }) => {
 	return {
 		store: {
@@ -13,10 +14,14 @@ const getState = ({ getStore, getActions, setStore }) => {
 					background: "white",
 					initial: "white"
 				}
-			]
+			],
+			// Añadimos propiedades para la autenticación
+			isAuthenticated: false,
+			user: null,
+			error: null
 		},
 		actions: {
-			// Use getActions to call a function within a fuction
+			// Acciones existentes
 			exampleFunction: () => {
 				getActions().changeColor(0, "green");
 			},
@@ -44,8 +49,99 @@ const getState = ({ getStore, getActions, setStore }) => {
 					return elm;
 				});
 
-				//reset the global store
 				setStore({ demo: demo });
+			},
+
+			
+			signup: async (userData) => {
+				try {
+					const response = await fetch(process.env.BACKEND_URL + "/api/signup", {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(userData),
+					});
+
+					if (response.ok) {
+						const data = await response.json();
+						
+						setStore({ error: null });
+						return { success: true, message: data.message };
+					} else {
+						const errorData = await response.json();
+						setStore({ error: errorData.message });
+						return { success: false, message: errorData.message };
+					}
+				} catch (error) {
+					console.error("Error en signup:", error);
+					setStore({ error: "Error al registrar el usuario" });
+					return { success: false, message: "Error al registrar el usuario" };
+				}
+			},
+
+			
+			login: async (credentials) => {
+				try {
+					const response = await fetch(process.env.BACKEND_URL + "/api/login", {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(credentials),
+					});
+
+					if (response.ok) {
+						const data = await response.json();
+						
+						localStorage.setItem('access_token', data.access_token);
+						
+						setStore({ isAuthenticated: true, error: null });
+						
+						getActions().getUser();
+						return { success: true };
+					} else {
+						const errorData = await response.json();
+						setStore({ error: errorData.message });
+						return { success: false, message: errorData.message };
+					}
+				} catch (error) {
+					console.error("Error en login:", error);
+					setStore({ error: "Error al iniciar sesión" });
+					return { success: false, message: "Error al iniciar sesión" };
+				}
+			},
+
+			
+			getUser: async () => {
+				try {
+					const token = localStorage.getItem('access_token');
+					const response = await fetch(process.env.BACKEND_URL + "/api/private", {
+						method: 'GET',
+						headers: {
+							'Content-Type': 'application/json',
+							'Authorization': `Bearer ${token}`,
+						},
+					});
+
+					if (response.ok) {
+						const data = await response.json();
+						setStore({ user: data.user, isAuthenticated: true, error: null });
+					} else {
+						setStore({ error: "No autorizado" });
+						getActions().logout();
+					}
+				} catch (error) {
+					console.error("Error al obtener el usuario:", error);
+					setStore({ error: "Error al obtener la información del usuario" });
+					getActions().logout();
+				}
+			},
+
+			
+			logout: () => {
+				localStorage.removeItem('access_token');
+				setStore({ isAuthenticated: false, user: null, error: null });
 			}
 		}
 	};
